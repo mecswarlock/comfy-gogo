@@ -1,0 +1,131 @@
+# gogo.json — Mindmap
+
+> Источник: [AdvancedV31 by Mecsylia](https://civitai.com/articles/17339) | Полная схема → [scheme.md](scheme.md) | Детали → [gogo.md](gogo.md)
+
+## Модели
+- Checkpoint: любой SDXL / Illustrious
+- LoRA: вручную через UI (не сохраняется в JSON!)
+- LLM: qwen3-vl-8b-nsfw-caption-v4.5 (LM Studio)
+- IP Adapter: noobIPAMARK1_mark1.safetensors
+- IP Adapter FaceID: ip-adapter-faceid-plusv2_sdxl.bin
+- CLIP Vision: CLIP-ViT-H-14 / CLIP-ViT-bigG-14
+- YOLO детекторы
+  - Лица: face_yolov9c.pt
+  - Руки: hand_yolov9c.pt
+  - Тело: yolo11m-seg.pt
+  - Глаза: Eyeful_v2-Paired.pt
+  - NSFW: ntd11_anime_nsfw_segm_v5
+
+## Группы (Fast Groups Bypasser — кнопки)
+- Comfyui_LLM group ⬜
+  - Qwen3-VL-8B через LM Studio API
+  - Текст пользователя = LOCKED атрибуты
+  - Ref image = soft контекст (конфликт → дропает image)
+  - ImpactSwitch: select=2 Qwen / select=1 прямой текст
+  - ⚠️ n196 StringConcatenate — вне группы, всегда активен
+- IP-Adapter Style & Composition ⬜
+  - Стиль + композиция с reference image
+- IP-Adapter Advanced ⬜
+  - Расширенный контроль весов IPA
+- IP-Adapter FaceID ⬜
+  - Идентичность лица
+- Clip Vision ⬜
+  - unCLIP conditioning (альтернатива IPA)
+- OpenPose ⬜
+  - Контроль позы через ControlNet
+- Any ControlNet ⬜
+  - Canny / Depth / Tile и другие
+- Regional Prompting ⬜
+  - Разные промпты для зон (Attention Couple)
+- VPred Model? ⬜
+  - V-prediction (WD и подобные модели)
+- Epsilon Scaling ⬜
+  - Контраст и детализация
+- CFGZeroStar ⬜
+  - Стабилизация при высоком CFG
+- CLIP Skip ⬜
+  - Пропуск слоёв CLIP (-2 для аниме)
+- 2ndSampler ⬜
+  - Рефайнмент вторым KSampler (denoise ~0.3)
+- Hires PreDetailer ⬜
+  - HiresFix перед детейлерами
+- Hires PostDetailer ⬜
+  - HiresFix финальный
+- Face ADetailer ⬜
+  - Лица: YOLO bbox → crop → KSampler → paste
+- Hand ADetailer ⬜
+  - Руки: то же самое
+- Body ADetailer ⬜
+  - Тело: segm
+- Eyes ADetailer ⬜
+  - Глаза: Eyeful_v2
+- NSFW ADetailer ⬜
+  - NSFW зоны
+- Detailer ⬜
+  - Mask-based: SolidMask → DetailerForEach
+- Upscaler ⬜
+  - Ultimate SD Upscale (тайловый)
+- Color Match ⬜
+  - Цветокоррекция
+  - n122 bypass → save chain НЕ ломается (ImpactSwitch дефолт=input1)
+- Compression Removal ⬜
+  - FBCNN артефакты
+- Remove Background ⬜
+  - RemBg прозрачный фон
+- Apply Signature ⬜
+  - Вотермарка
+- Load Image ⬜
+  - img2img вход
+
+## Пайплайн (полный)
+- Блок 1: Ввод текста
+  - Prompt Input (wildcards: {вар1|вар2})
+  - TriggerWordToggle → LoRA триггеры
+  - StringConcatenate: триггеры (a) + текст (b)
+  - RegexReplace: фильтрация текста
+- Блок 2: Qwen LLM (Comfyui_LLM group)
+  - LoadImage → ImageScale 1024px → Qwen:images
+  - RegexReplace → Qwen:user_prompt (LOCKED)
+  - Qwen3-VL → booru теги
+  - ImpactSwitch: select=2 Qwen / select=1 bypass
+- Блок 3: Сборка промпта
+  - extra booru tags (n49) → string_a (ПРИОРИТЕТ)
+  - ImpactSwitch output → string_b
+  - n196 StringConcatenate → итоговый Positive
+  - NEGATIVE отдельно
+- Блок 4: Модель
+  - CheckpointLoaderSimple (SDXL)
+  - LoraManager (добавлять вручную!)
+  - CLIPSetLastLayer (CLIP Skip)
+- Блок 5: Модификаторы
+  - CFGZeroStar / EpsilonScaling / VPred
+  - IP Adapters: Style / Advanced / FaceID
+  - ControlNet: OpenPose / AnyNet
+  - Regional Prompting
+- Блок 6: Conditioning
+  - CLIPTextEncode Positive / Negative
+  - ControlNet применяется здесь
+- Блок 7: Sampling
+  - EmptyLatentImage (Width × Height)
+  - KSampler главный
+  - KSampler 2nd (рефайнмент)
+  - VAEDecode → IMAGE
+- Блок 8: Детейлеры
+  - HiresFix Pre → Face → Hand → Body → Eyes → NSFW → Mask Detailer → HiresFix Post
+- Блок 9: Сохранение
+  - Upscaler → ColorMatch → FBCNN → RemBg → Signature → ImageSaver
+
+## Минимальная схема ✅
+- Control Center (всегда)
+  - KSampler + VAEDecode + CLIP + CheckpointLoader
+  - LoraManager: добавить вручную после reload
+- n196 StringConcatenate активен (вне LLM group!)
+  - иначе LoRA триггеры не попадают в промпт
+- Остальное: bypass
+
+## Критические правила
+- LoRA не сохраняется → добавлять каждый раз через UI
+- Qwen user_prompt = пустой (иначе баг 你好)
+- Ref image → авторесайз 1024px (n192 ImageScale)
+- n196 вне LLM group → активен даже при bypass группы
+- При bypass LLM group: текст идёт напрямую через ImpactSwitch input1
