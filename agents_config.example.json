@@ -1,0 +1,15 @@
+{
+  "agent_core": "openclaw",
+  "llm_backend": "qwen-vl",
+  "comfy_api_url": "http://127.0.0.1:8188",
+  "memory": {
+    "enabled": true,
+    "type": "vector",
+    "persistence": true
+  },
+  "modules": {
+    "image_generation": true,
+    "prompt_enhancement": true,
+    "auto_tagging": true
+  }
+}
